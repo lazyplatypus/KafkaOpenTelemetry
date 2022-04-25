@@ -17,23 +17,22 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/Shopify/sarama"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/Shopify/sarama/otelsarama"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/trace/jaeger"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-        "time"
 	"log"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/Shopify/sarama"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
-
+	"go.opentelemetry.io/contrib/instrumentation/github.com/Shopify/sarama/otelsarama"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/trace/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
-
 
 var (
 	brokers = flag.String("brokers", "localhost:9092", "The Kafka brokers to connect to, as a comma separated list")
@@ -41,53 +40,52 @@ var (
 
 // tracerProvider creates a new trace provider instance and registers it as global trace provider.
 func tracerProvider(url string) (*sdktrace.TracerProvider, error) {
-        // Create the Jaeger exporter
-        exp, err := jaeger.NewRawExporter(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(url)))
-        if err != nil {
-                return nil, err
-        }
-        tp := sdktrace.NewTracerProvider(
-                sdktrace.WithBatcher(exp),
-                sdktrace.WithResource(resource.NewWithAttributes(
-                        attribute.String("service.name","kafka-consumer"),
-                        attribute.String("exporter", "jaeger"),
-                )),
-        )
-        otel.SetTracerProvider(tp)
-        return tp, nil
+	// Create the Jaeger exporter
+	exp, err := jaeger.NewRawExporter(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(url)))
+	if err != nil {
+		return nil, err
+	}
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(resource.NewWithAttributes(
+			attribute.String("service.name", "kafka-consumer"),
+			attribute.String("exporter", "jaeger"),
+		)),
+	)
+	otel.SetTracerProvider(tp)
+	return tp, nil
 
 }
 
-
 func main() {
-	
-	jaeger_endpoint,exists := os.LookupEnv("OTEL_ENDPOINT")
 
-        if !exists{
-                log.Println("Using localhost:14268 as OTEL_ENDPOINT")
-                jaeger_endpoint = "localhost:14268"
-        }
+	jaeger_endpoint, exists := os.LookupEnv("OTEL_ENDPOINT")
 
-        collectorEndpoint := "http://"+jaeger_endpoint+"/api/traces"
+	if !exists {
+		log.Println("Using localhost:14268 as OTEL_ENDPOINT")
+		jaeger_endpoint = "localhost:14268"
+	}
 
-        tp, tperr := tracerProvider(collectorEndpoint)
-        
- 	if tperr != nil {
+	collectorEndpoint := "http://" + jaeger_endpoint + "/api/traces"
+
+	tp, tperr := tracerProvider(collectorEndpoint)
+
+	if tperr != nil {
 		log.Fatal(tperr)
 	}
 
-        ctx, cancel := context.WithCancel(context.Background())
-        defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-        // Cleanly shutdown and flush telemetry when the application exits.
-        defer func(ctx context.Context) {
-                // Do not make the application hang when it is shutdown.
-                ctx, cancel = context.WithTimeout(ctx, time.Second*5)
-                defer cancel()
-                if err := tp.Shutdown(ctx); err != nil {
-                        log.Fatal(err)
-                }
-        }(ctx)
+	// Cleanly shutdown and flush telemetry when the application exits.
+	defer func(ctx context.Context) {
+		// Do not make the application hang when it is shutdown.
+		ctx, cancel = context.WithTimeout(ctx, time.Second*5)
+		defer cancel()
+		if err := tp.Shutdown(ctx); err != nil {
+			log.Fatal(err)
+		}
+	}(ctx)
 
 	flag.Parse()
 
@@ -108,7 +106,7 @@ func startConsumerGroup(brokerList []string) {
 	consumerGroupHandler := Consumer{}
 	// Wrap instrumentation
 	propagators := propagation.TraceContext{}
-	handler := otelsarama.WrapConsumerGroupHandler(&consumerGroupHandler,otelsarama.WithPropagators(propagators))
+	handler := otelsarama.WrapConsumerGroupHandler(&consumerGroupHandler, otelsarama.WithPropagators(propagators))
 
 	config := sarama.NewConfig()
 	config.Version = sarama.V2_5_0_0
@@ -122,8 +120,8 @@ func startConsumerGroup(brokerList []string) {
 
 	topicName, exists := os.LookupEnv("KAFKA_TOPIC")
 	if !exists {
-		log.Println("Using default topic name test-topic")
-		topicName = "test-topic"
+		log.Println("Using default topic name kafkademo")
+		topicName = "kafkademo"
 	}
 
 	err = consumerGroup.Consume(context.Background(), []string{topicName}, handler)
@@ -137,14 +135,12 @@ func printMessage(msg *sarama.ConsumerMessage) {
 
 	propagators := propagation.TraceContext{}
 	ctx := propagators.Extract(context.Background(), otelsarama.NewConsumerMessageCarrier(msg))
-
+	log.Println("HEADERS:", msg.Headers)
 	tr := otel.Tracer("consumer")
 
+	// Create a span.printMessage
 
-	// Create a span.
-
-	_, span := tr.Start(ctx, "consume message")
-
+	_, span := tr.Start(ctx, "print message")
 
 	defer span.End()
 
@@ -152,15 +148,14 @@ func printMessage(msg *sarama.ConsumerMessage) {
 	propagators.Inject(ctx, otelsarama.NewConsumerMessageCarrier(msg))
 
 	// Emulate Work Loads (or any further processing as needed)
-	time.Sleep(4 * time.Second)
+	time.Sleep(35 * time.Second)
 
-	span.SetAttributes(attribute.String("test-consumer-span-key","test-consumer-span-value"))
+	span.SetAttributes(attribute.String("test-consumer-span-key", "test-consumer-span-value"))
 
 	// Set any additional attributes that might make sense
 	// span.SetAttributes(attribute.String("consumed message at offset",strconv.FormatInt(int64(msg.Offset),10)))
 	// span.SetAttributes(attribute.String("consumed message to partition",strconv.FormatInt(int64(msg.Partition),10)))
-	span.SetAttributes(attribute.String("message_bus.destination",msg.Topic))
-
+	span.SetAttributes(attribute.String("message_bus.destination", msg.Topic))
 
 	log.Println("Successful to read message: ", string(msg.Value), "at offset of ", msg.Offset)
 }
@@ -171,6 +166,7 @@ type Consumer struct {
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
 func (consumer *Consumer) Setup(sarama.ConsumerGroupSession) error {
+	log.Println("Setup has been triggered")
 	return nil
 }
 
@@ -186,7 +182,7 @@ func (consumer *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	// The `ConsumeClaim` itself is called within a goroutine, see:
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	for message := range claim.Messages() {
-		time.Sleep(1*time.Second)
+		time.Sleep(1 * time.Second)
 		printMessage(message)
 		session.MarkMessage(message, "")
 		tweetMessage(message)
@@ -195,7 +191,7 @@ func (consumer *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	return nil
 }
 
-func tweetMessage(msg *sarama.ConsumerMessage){
+func tweetMessage(msg *sarama.ConsumerMessage) {
 
 	config := oauth1.NewConfig("C8yZRwJz96GhCoM9fa4H7f4AL", "XrCYhaszZIEILiviJzARR3Ec13uuKyE7RzAfxAcoKdeydPgaBe")
 	token := oauth1.NewToken("3093967938-7DTn36jFvjFvvNpuDWVykHBhbLGI3PjHb4lFV4Y", "UQsfmvwc5YHjqRXutd46wiYnDiFGBZ9wZVl7iVha8oj5K")
@@ -215,6 +211,6 @@ func tweetMessage(msg *sarama.ConsumerMessage){
 	if err != nil {
 		log.Println(err)
 	}
-	log.Printf("%+v\n", resp, user, tweet)
+	log.Printf("twitter has been triggered", resp, user, tweet)
 
 }

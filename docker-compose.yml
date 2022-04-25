@@ -10,7 +10,7 @@ services:
       ZOO_PORT: 2181
       ZOO_SERVERS: server.1=zoo:2888:3888
     networks:
-      - shortenit
+      - kafkademo
 
   kafka:
     image: confluentinc/cp-kafka:5.5.0
@@ -28,7 +28,7 @@ services:
     depends_on:
       - zoo
     networks:
-      - shortenit
+      - kafkademo
 
   jaeger:
     image: jaegertracing/all-in-one:1.20
@@ -44,7 +44,7 @@ services:
     environment:
       COLLECTOR_ZIPKIN_HTTP_PORT: 9411
     networks:
-      - shortenit
+      - kafkademo
 
 networks:
-  shortenit:
+  kafkademo:

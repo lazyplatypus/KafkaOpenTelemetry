@@ -15,14 +15,15 @@
 package main
 
 import (
-	"net/http"
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
+
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/attribute"
-        "go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/sdk/resource"
 
 	"log"
 	"math/rand"
@@ -53,22 +54,23 @@ func tracerProvider(url string) (*sdktrace.TracerProvider, error) {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exp),
 		sdktrace.WithResource(resource.NewWithAttributes(
-			attribute.String("service.name","kafka-producer"),
+			attribute.String("service.name", "kafka-producer"),
 			attribute.String("exporter", "jaeger"),
 		)),
 	)
-        otel.SetTracerProvider(tp)
-        return tp, nil
-       
+	otel.SetTracerProvider(tp)
+	return tp, nil
+
 }
 
 func kafka(name string, question string) {
 	tp, tperr := tracerProvider("http://127.0.0.1:14268/api/traces")
-        if tperr != nil{
+	if tperr != nil {
 		log.Fatal(tperr)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+
 	defer cancel()
 
 	// Cleanly shutdown and flush telemetry when the application exits.
@@ -93,8 +95,8 @@ func kafka(name string, question string) {
 
 	topicName, exists := os.LookupEnv("KAFKA_TOPIC")
 	if !exists {
-		log.Println("Using default topic name test-topic")
-		topicName = "test-topic"
+		log.Println("Using default topic name kafkademo")
+		topicName = "kafkademo"
 	}
 	// Create root span encompassing prior work + producing to the kafka topic
 
@@ -103,7 +105,7 @@ func kafka(name string, question string) {
 	defer span.End()
 	propagators := propagation.TraceContext{}
 
-	producer := newAccessLogProducer(brokerList,topicName,otel.GetTracerProvider(),propagators)
+	producer := newAccessLogProducer(brokerList, topicName, otel.GetTracerProvider(), propagators)
 
 	rand.Seed(time.Now().Unix())
 
@@ -115,13 +117,11 @@ func kafka(name string, question string) {
 	}
 
 	propagators.Inject(ctx, otelsarama.NewProducerMessageCarrier(&msg))
-
 	producer.Input() <- &msg
 	successMsg := <-producer.Successes()
 	log.Println("Successful to write message, offset:", successMsg.Offset)
 
-
-	span.SetAttributes(attribute.String("test-producer-span-key","test-producer-span-value"))
+	span.SetAttributes(attribute.String("test-producer-span-key", "test-producer-span-value"))
 	// span.SetAttributes(attribute.String("sent message at offset",strconv.FormatInt(int64(successMsg.Offset),10)))
 	// span.SetAttributes(attribute.String("sent message to partition",strconv.FormatInt(int64(successMsg.Partition),10)))
 
@@ -132,8 +132,7 @@ func kafka(name string, question string) {
 	}
 }
 
-
-func Parse (w http.ResponseWriter, req *http.Request) {
+func Parse(w http.ResponseWriter, req *http.Request) {
 	//Get Email Values
 	name := req.FormValue("name")
 	question := req.FormValue("question")
@@ -144,11 +143,11 @@ func main() {
 	http.HandleFunc("/", Parse)
 	err := http.ListenAndServe(":3003", nil)
 	if err != nil {
-			log.Fatal("ListenAndServe: ", err)
+		log.Fatal("ListenAndServe: ", err)
 	}
 }
 
-func newAccessLogProducer(brokerList []string, topicName string, tracerProvider otrace.TracerProvider,propagators propagation.TraceContext) sarama.AsyncProducer {
+func newAccessLogProducer(brokerList []string, topicName string, tracerProvider otrace.TracerProvider, propagators propagation.TraceContext) sarama.AsyncProducer {
 	config := sarama.NewConfig()
 	config.Version = sarama.V2_5_0_0
 	config.Producer.Return.Successes = true
@@ -159,7 +158,8 @@ func newAccessLogProducer(brokerList []string, topicName string, tracerProvider 
 	}
 
 	// Wrap instrumentation - pass in the tracer provider and the appropriate propagator
-	producer = otelsarama.WrapAsyncProducer(config, producer,otelsarama.WithTracerProvider(tracerProvider),otelsarama.WithPropagators(propagators))
+	producer = otelsarama.WrapAsyncProducer(config, producer, otelsarama.WithTracerProvider(tracerProvider), otelsarama.WithPropagators(propagators))
+	log.Println("propogators:", producer)
 
 	// We will log to STDOUT if we're not able to produce messages.
 	go func() {
