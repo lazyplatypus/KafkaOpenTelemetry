@@ -23,8 +23,6 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/dghubble/go-twitter/twitter"
-	"github.com/dghubble/oauth1"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/Shopify/sarama/otelsarama"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -185,32 +183,7 @@ func (consumer *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 		time.Sleep(1 * time.Second)
 		printMessage(message)
 		session.MarkMessage(message, "")
-		tweetMessage(message)
 	}
 
 	return nil
-}
-
-func tweetMessage(msg *sarama.ConsumerMessage) {
-
-	config := oauth1.NewConfig("C8yZRwJz96GhCoM9fa4H7f4AL", "XrCYhaszZIEILiviJzARR3Ec13uuKyE7RzAfxAcoKdeydPgaBe")
-	token := oauth1.NewToken("3093967938-7DTn36jFvjFvvNpuDWVykHBhbLGI3PjHb4lFV4Y", "UQsfmvwc5YHjqRXutd46wiYnDiFGBZ9wZVl7iVha8oj5K")
-	// OAuth1 http.Client will automatically authorize Requests
-	httpClient := config.Client(oauth1.NoContext, token)
-
-	// Twitter client
-	client := twitter.NewClient(httpClient)
-
-	// Verify Credentials
-	verifyParams := &twitter.AccountVerifyParams{
-		SkipStatus:   twitter.Bool(true),
-		IncludeEmail: twitter.Bool(true),
-	}
-	user, _, _ := client.Accounts.VerifyCredentials(verifyParams)
-	tweet, resp, err := client.Statuses.Update(string(msg.Value), &twitter.StatusUpdateParams{InReplyToStatusID: 1508887134601580549})
-	if err != nil {
-		log.Println(err)
-	}
-	log.Printf("twitter has been triggered", resp, user, tweet)
-
 }

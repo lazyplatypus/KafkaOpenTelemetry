@@ -18,7 +18,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net/http"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -122,8 +121,6 @@ func kafka(name string, question string) {
 	log.Println("Successful to write message, offset:", successMsg.Offset)
 
 	span.SetAttributes(attribute.String("test-producer-span-key", "test-producer-span-value"))
-	// span.SetAttributes(attribute.String("sent message at offset",strconv.FormatInt(int64(successMsg.Offset),10)))
-	// span.SetAttributes(attribute.String("sent message to partition",strconv.FormatInt(int64(successMsg.Partition),10)))
 
 	err := producer.Close()
 	if err != nil {
@@ -132,18 +129,11 @@ func kafka(name string, question string) {
 	}
 }
 
-func Parse(w http.ResponseWriter, req *http.Request) {
-	//Get Email Values
-	name := req.FormValue("name")
-	question := req.FormValue("question")
-	kafka(name, question)
-}
 
 func main() {
-	http.HandleFunc("/", Parse)
-	err := http.ListenAndServe(":3003", nil)
-	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
+	for {
+		kafka("daniel", "this is a message")
+		time.Sleep(1 * time.Second)
 	}
 }
 
