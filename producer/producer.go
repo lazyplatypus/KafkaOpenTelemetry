@@ -33,10 +33,11 @@ import (
 	"github.com/Shopify/sarama"
 	"go.opentelemetry.io/otel/propagation"
 	otrace "go.opentelemetry.io/otel/trace"
-
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/Shopify/sarama/otelsarama"
-	"go.opentelemetry.io/otel/exporters/trace/jaeger"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
 )
 
 var (
@@ -44,18 +45,28 @@ var (
 )
 
 // initTracer creates a new trace provider instance and registers it as global trace provider.
-func tracerProvider(url string) (*sdktrace.TracerProvider, error) {
+func tracerProvider() (*sdktrace.TracerProvider, error) {
 	// Create the Jaeger exporter
-	exp, err := jaeger.NewRawExporter(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(url)))
+
+	ctx := context.Background()
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			attribute.String("service.name", "OTel-Kafka-Producer"),
+		),
+	)
+
+	exporter, err := otlptrace.New(
+		ctx,
+		otlptracegrpc.NewClient(),
+	)
 	if err != nil {
-		return nil, err
+		log.Fatalf("%s: %v", "failed to create metric exporter", err)
 	}
+
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp),
-		sdktrace.WithResource(resource.NewWithAttributes(
-			attribute.String("service.name", "kafka-producer"),
-			attribute.String("exporter", "jaeger"),
-		)),
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
 	)
 	otel.SetTracerProvider(tp)
 	return tp, nil
@@ -63,7 +74,7 @@ func tracerProvider(url string) (*sdktrace.TracerProvider, error) {
 }
 
 func kafka(name string, question string) {
-	tp, tperr := tracerProvider("http://127.0.0.1:14268/api/traces")
+	tp, tperr := tracerProvider()
 	if tperr != nil {
 		log.Fatal(tperr)
 	}
