@@ -40,8 +40,6 @@ var (
 
 // tracerProvider creates a new trace provider instance and registers it as global trace provider.
 func tracerProvider() (*sdktrace.TracerProvider, error) {
-	// Create the Jaeger exporter
-
 	ctx := context.Background()
 
 	res, err := resource.New(ctx,
@@ -49,7 +47,8 @@ func tracerProvider() (*sdktrace.TracerProvider, error) {
 			attribute.String("service.name", "OTel-Kafka-Consumer"),
 		),
 	)
-
+	
+	//set up exporting via otlp
 	exporter, err := otlptrace.New(
 		ctx,
 		otlptracegrpc.NewClient(),
