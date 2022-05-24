@@ -46,7 +46,6 @@ var (
 
 // initTracer creates a new trace provider instance and registers it as global trace provider.
 func tracerProvider() (*sdktrace.TracerProvider, error) {
-	// Create the Jaeger exporter
 
 	ctx := context.Background()
 
@@ -56,6 +55,7 @@ func tracerProvider() (*sdktrace.TracerProvider, error) {
 		),
 	)
 
+	//set up exporting via otlp
 	exporter, err := otlptrace.New(
 		ctx,
 		otlptracegrpc.NewClient(),
